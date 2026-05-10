@@ -11,7 +11,7 @@ DocuMind lets you upload any PDF and chat with it using AI. Ask questions, get s
 
 ## Tech Stack
 - HTML, CSS, JavaScript (single file)
-- PDF.js — PDF text extraction
+- PDF.js • Mammoth.js
 - Google Gemini API — AI responses
 
 ## API Used
