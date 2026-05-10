@@ -71,6 +71,22 @@
         }
         .logo-text { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 700; letter-spacing: -0.5px; }
         .logo-text span { color: var(--accent2); }
+        
+        .api-config {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        .key-btn {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 5px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            cursor: pointer;
+        }
+
         .status-pill {
             font-size: 12px; padding: 5px 12px;
             border-radius: 20px; border: 1px solid var(--border);
@@ -185,7 +201,10 @@
             <div class="logo-icon">🧠</div>
             <div class="logo-text">Docu<span>Mind</span></div>
         </div>
-        <div class="status-pill" id="status-pill">No document</div>
+        <div class="api-config">
+            <button class="key-btn" onclick="updateApiKey()">🔑 Set API Key</button>
+            <div class="status-pill" id="status-pill">No document</div>
+        </div>
     </div>
 
     <div class="upload-zone" id="upload-zone">
@@ -222,13 +241,22 @@
 </div>
 
 <script>
-    // ✅ API KEY PASTE 
-    let GEMINI_API_KEY = 'AIzaSyAJCG0d42qtTG-rMIJf5IJNae9XQCUrY-g';
+    // ✅ Key Manager: Ye LocalStorage se key uthayega taake leak na ho
+    let GEMINI_API_KEY = localStorage.getItem('documind_api_key') || '';
     let documentText = '';
     let isReady = false;
 
     pdfjsLib.GlobalWorkerOptions.workerSrc =
         'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    function updateApiKey() {
+        const newKey = prompt("Enter your Gemini API Key:", GEMINI_API_KEY);
+        if (newKey !== null) {
+            GEMINI_API_KEY = newKey.trim();
+            localStorage.setItem('documind_api_key', GEMINI_API_KEY);
+            alert("API Key updated!");
+        }
+    }
 
     async function handleFile(event) {
         const file = event.target.files[0];
@@ -319,10 +347,18 @@
         const input = document.getElementById('user-input');
         const msg = input.value.trim();
         if (!msg) return;
+        
+        if (!GEMINI_API_KEY) {
+            updateApiKey();
+            if (!GEMINI_API_KEY) return;
+        }
+
         if (!isReady) { addMessage('bot', '⚠️ Please upload a document first!'); return; }
+        
         addMessage('user', msg);
         input.value = '';
         const typing = showTyping();
+        
         try {
             const reply = await callGemini(msg);
             removeTyping(typing);
@@ -337,7 +373,7 @@
         const prompt = `You are DocuMind, an AI document assistant. Answer based ONLY on this document content. If the answer is not in the document, say so honestly.
 
 DOCUMENT CONTENT:
-${documentText.substring(0, 12000)}
+${documentText.substring(0, 15000)}
 
 USER QUESTION: ${question}
 
@@ -350,11 +386,18 @@ Answer clearly with bullet points or structure when needed.`;
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     contents: [{ parts: [{ text: prompt }] }],
-                    generationConfig: { temperature: 0.3, maxOutputTokens: 1024 }
+                    generationConfig: { temperature: 0.3, maxOutputTokens: 2048 }
                 })
             }
         );
-        if (!res.ok) { const e = await res.json(); throw new Error(e.error?.message || 'API failed'); }
+        if (!res.ok) { 
+            const e = await res.json(); 
+            if(e.error?.message.includes("API_KEY_INVALID")) {
+                localStorage.removeItem('documind_api_key');
+                GEMINI_API_KEY = '';
+            }
+            throw new Error(e.error?.message || 'API failed'); 
+        }
         const data = await res.json();
         return data.candidates[0].content.parts[0].text;
     }
